@@ -61,7 +61,11 @@ fn step(window: WebviewWindow, phase: usize) {
         0 => {
             window.set_focus().unwrap();
             window.eval("window.events=[]; for (const name of ['compositionstart','compositionupdate','compositionend','keydown']) originalInput.addEventListener(name, e => events.push([e.type,e.data || e.key])); originalInput.value=''; originalInput.focus();").unwrap();
-            check(&window, 1, "document.activeElement === originalInput");
+            check(
+                &window,
+                1,
+                "document.hasFocus() && document.activeElement === originalInput",
+            );
         }
         1 => {
             assert!(native.isVisible());
