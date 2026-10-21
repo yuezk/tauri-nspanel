@@ -1,5 +1,9 @@
 // Requires a macOS desktop session. See docs/testing.md for the command.
 #[cfg(target_os = "macos")]
+#[path = "support/visible_conversion.rs"]
+mod visible_conversion;
+
+#[cfg(target_os = "macos")]
 mod regression {
     use std::collections::HashMap;
     use std::sync::{
@@ -52,7 +56,7 @@ mod regression {
         if count == 20 {
             eprintln!("PASS: {label}: 10 round trips preserve native content and DOM/input state");
             if handle.state::<AtomicUsize>().fetch_add(1, Ordering::SeqCst) == 1 {
-                handle.exit(0);
+                super::visible_conversion::start(handle);
             }
             return;
         }
@@ -123,7 +127,7 @@ mod regression {
 
     pub(super) fn run() {
         std::thread::spawn(|| {
-            std::thread::sleep(std::time::Duration::from_secs(20));
+            std::thread::sleep(std::time::Duration::from_secs(40));
             eprintln!("FAIL: native conversion or webview state check timed out");
             std::process::exit(1);
         });

@@ -1,5 +1,5 @@
 use objc2::{rc::Retained, MainThreadMarker};
-use objc2_app_kit::{NSView, NSWindow, NSWindowStyleMask};
+use objc2_app_kit::{NSResponder, NSView, NSWindow, NSWindowStyleMask};
 use objc2_foundation::NSObject;
 use tauri::{Runtime, WebviewWindow};
 
@@ -17,6 +17,7 @@ pub fn convert_window_class<R: Runtime, T>(
     // main thread. The conversion changes its class, not its address or lifetime.
     let native = unsafe { &*pointer.cast::<NSWindow>() };
     let content = native.contentView();
+    let responder = native.firstResponder();
     let style = native.styleMask();
     let placeholder = NSView::new(mtm);
 
@@ -28,6 +29,7 @@ pub fn convert_window_class<R: Runtime, T>(
         window: native,
         content,
         style,
+        responder,
     };
     let result = convert(pointer.cast());
     drop(restore);
@@ -38,6 +40,7 @@ struct RestoreContent<'a> {
     window: &'a NSWindow,
     content: Option<Retained<NSView>>,
     style: NSWindowStyleMask,
+    responder: Option<Retained<NSResponder>>,
 }
 
 impl Drop for RestoreContent<'_> {
@@ -46,5 +49,8 @@ impl Drop for RestoreContent<'_> {
         // original content alive on both successful and rejected conversions.
         self.window.setStyleMask(self.style);
         self.window.setContentView(self.content.as_deref());
+        // Replacing the content view makes the window its own first responder.
+        // Restore the retained responder so keyboard input still reaches WebKit.
+        self.window.makeFirstResponder(self.responder.as_deref());
     }
 }
