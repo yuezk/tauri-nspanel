@@ -979,6 +979,9 @@ impl<'a, R: Runtime + 'a, T: FromWindow<R> + 'static> PanelBuilder<'a, R, T> {
     /// Creates a Tauri window using the configured properties, converts it to
     /// an NSPanel, and applies all panel-specific settings.
     pub fn build(self) -> tauri::Result<Arc<dyn Panel<R>>> {
+        if MainThreadMarker::new().is_none() {
+            return Err(std::io::Error::other("Panel construction must run on the main thread").into());
+        }
         // Handle no_activate option by temporarily changing activation policy
         let original_policy = if self.panel_config.no_activate.unwrap_or(false) {
             MainThreadMarker::new().map(|mtm| {
@@ -1048,7 +1051,7 @@ impl<'a, R: Runtime + 'a, T: FromWindow<R> + 'static> PanelBuilder<'a, R, T> {
         let window = window?;
 
         // Convert to panel
-        let panel = window.to_panel::<T>().unwrap();
+        let panel = window.to_panel::<T>()?;
 
         // Apply panel configuration using the Panel trait methods
         if let Some(floating) = self.panel_config.floating {

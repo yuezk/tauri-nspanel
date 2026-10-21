@@ -368,7 +368,9 @@ macro_rules! panel {
                         ) -> *const $crate::objc2::runtime::AnyClass;
                     }
 
-                    if let Some(_) = self.app_handle.remove_webview_panel(self.label.as_str()) {
+                    self.app_handle.get_webview_panel(self.label.as_str()).ok()?;
+                    let window = self.app_handle.get_webview_window(&self.label)?;
+                    $crate::window_class::convert_window_class(&window, |_| {
                         self.set_event_handler(None);
                         // Tauri/Tao retains the native window and releases it during close.
                         // AppKit must not release the same window independently.
@@ -387,10 +389,10 @@ macro_rules! panel {
                             );
                         }
 
-                        self.app_handle.get_webview_window(&self.label)
-                    } else {
-                        None
-                    }
+                        Ok(())
+                    }).ok()?;
+                    self.app_handle.remove_webview_panel(self.label.as_str());
+                    Some(window)
                 }
 
                 fn as_panel(&self) -> &$crate::objc2_app_kit::NSPanel {
@@ -681,13 +683,6 @@ macro_rules! panel {
             // Implement FromWindow trait
             impl<R: tauri::Runtime> $crate::FromWindow<R> for $class_name<R> {
                 fn from_window(window: tauri::WebviewWindow<R>, label: String) -> tauri::Result<Self> {
-                    let ns_window = window.ns_window().map_err(|e| {
-                        tauri::Error::Io(std::io::Error::new(
-                            std::io::ErrorKind::Other,
-                            format!("Failed to get NSWindow: {:?}", e),
-                        ))
-                    })?;
-
                     unsafe {
                         unsafe extern "C" {
                             fn object_setClass(
@@ -700,23 +695,28 @@ macro_rules! panel {
                             ) -> *const $crate::objc2::runtime::AnyClass;
                         }
 
-                        let original_class = object_getClass(ns_window as *mut $crate::objc2_foundation::NSObject);
+                        let (panel, original_class) = $crate::window_class::convert_window_class(&window, |ns_window| {
+                            // Detaching WebKit and the title bar first removes their
+                            // dynamic KVO subclass. Save the underlying native class.
+                            let original_class = object_getClass(ns_window);
 
-                        // Change the window class to our custom panel class
-                        object_setClass(
-                            ns_window as *mut $crate::objc2_foundation::NSObject,
-                            [<Raw $class_name>]::class(),
-                        );
+                            // Change the window class to our custom panel class
+                            object_setClass(
+                                ns_window,
+                                [<Raw $class_name>]::class(),
+                            );
 
-                        // Now cast to our panel type
-                        let panel_ptr = ns_window as *mut [<Raw $class_name>];
+                            // Now cast to our panel type
+                            let panel_ptr = ns_window as *mut [<Raw $class_name>];
 
-                        // Create a Retained from the raw pointer
-                        let panel = $crate::objc2::rc::Retained::retain(panel_ptr).ok_or_else(|| {
-                            tauri::Error::Io(std::io::Error::new(
-                                std::io::ErrorKind::Other,
-                                "Failed to retain panel",
-                            ))
+                            // Create a Retained from the raw pointer
+                            let panel = $crate::objc2::rc::Retained::retain(panel_ptr).ok_or_else(|| {
+                                tauri::Error::Io(std::io::Error::new(
+                                    std::io::ErrorKind::Other,
+                                    "Failed to retain panel",
+                                ))
+                            })?;
+                            Ok((panel, original_class))
                         })?;
 
                         // Apply instance properties with class-level config after swizzling

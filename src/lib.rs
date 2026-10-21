@@ -2,6 +2,8 @@ pub mod builder;
 pub mod common;
 pub mod event;
 pub mod panel;
+#[doc(hidden)]
+pub mod window_class;
 
 // Re-export for macro usage
 #[doc(hidden)]
@@ -86,7 +88,9 @@ pub trait Panel<R: tauri::Runtime = tauri::Wry>: Send + Sync {
 
     /// Convert the panel back to a regular Tauri window.
     ///
-    /// This restores Tauri-compatible native window ownership before returning the window.
+    /// Preserves the content view and current style while restoring the original
+    /// native class and Tauri-compatible ownership. Must run on the main thread;
+    /// returns `None` without changing the panel when called from another thread.
     fn to_window(&self) -> Option<tauri::WebviewWindow<R>>;
 
     /// Get a reference to the underlying NSPanel
@@ -235,6 +239,9 @@ pub trait Panel<R: tauri::Runtime = tauri::Wry>: Send + Sync {
 /// Trait for panels that can be created from a window
 pub trait FromWindow<R: Runtime>: Panel<R> + Sized {
     /// Create panel from a Tauri window
+    ///
+    /// Must run on the main thread. The generated implementation preserves the
+    /// existing content view and style, including for a loaded, decorated window.
     fn from_window(window: WebviewWindow<R>, label: String) -> tauri::Result<Self>;
 }
 

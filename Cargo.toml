@@ -24,6 +24,8 @@ rust-version = "1.75"
 publish = ["crates-io"]
 include = [
   "/src/**",
+  "/tests/**",
+  "/docs/testing.md",
   "/examples/*.rs",
   "/Cargo.toml",
   "/README.md",
@@ -42,6 +44,16 @@ objc2-foundation = "0.3.1"
 
 [features]
 cargo-clippy = []
+native-tests = []
+
+[dev-dependencies]
+tauri = { version = "2.8.5", features = ["test"] }
+dispatch2 = "0.3"
+
+[[test]]
+name = "native_conversion"
+harness = false
+required-features = ["native-tests"]
 
 [workspace.dependencies]
 tauri = "2.8.5"
